@@ -18,15 +18,17 @@ Zeus is a high-performance backend service for the Zephyr project, built on the 
 
 ```
 Zeus/
-├── api_group/          # API route groups
-├── config/            # Configuration management
-├── models/            # Data models
-├── qweather/          # QWeather data source
-├── openmeteo/         # OpenMeteo data source
-├── openstreetmap/     # OpenStreetMap integration
-├── utils/             # Utility functions
-├── cert/              # TLS certificates
-└── bin/               # Build output
+├── cmd/
+│   └── server/          # Application entry point
+├── internal/
+│   ├── api/             # API handlers
+│   ├── config/          # Configuration management
+│   ├── models/          # Data models
+│   └── providers/       # External service providers
+├── pkg/
+├── go.mod               # Go module definition
+├── go.sum               # Go module checksums
+└── Makefile             # Build automation
 ```
 
 ## Quick Start
@@ -41,7 +43,7 @@ Zeus/
 
 1. **Clone the project**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/LanceHuang245/Zeus
    cd Zeus
    ```
 

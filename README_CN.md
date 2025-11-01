@@ -19,15 +19,17 @@ Zeus 是 Zephyr 项目的高性能后端服务，基于 Gin 框架开发，提�
 
 ```
 Zeus/
-├── api_group/          # API 路由组
-├── config/            # 配置管理
-├── models/            # 数据模型
-├── qweather/          # QWeather 数据源
-├── openmeteo/         # OpenMeteo 数据源
-├── openstreetmap/     # OpenStreetMap 集成
-├── utils/             # 工具函数
-├── cert/              # TLS 证书
-└── bin/               # 构建输出
+├── cmd/
+│   └── server/          # 程序入口
+├── internal/
+│   ├── api/             # API
+│   ├── config/          # 配置结构
+│   ├── models/          # 数据模型
+│   └── providers/       # 外部服务提供方
+├── pkg/
+├── go.mod
+├── go.sum
+└── Makefile             # Makefile 用于构建、格式化等
 ```
 
 ## 快速开始
@@ -42,7 +44,7 @@ Zeus/
 
 1. **克隆项目**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/LanceHuang245/Zeus
    cd Zeus
    ```
 
