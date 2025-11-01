@@ -108,9 +108,6 @@ make build-all
 # Format code
 make fmt
 
-# Run tests
-make test
-
 # Clean build files
 make clean
 ```

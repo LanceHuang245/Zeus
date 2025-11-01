@@ -109,9 +109,6 @@ make build-all
 # 格式化代码
 make fmt
 
-# 运行测试
-make test
-
 # 清理构建文件
 make clean
 ```
