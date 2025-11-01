@@ -1,8 +1,8 @@
-package apigroup
+package api
 
 import (
-	"Zephyr/openmeteo"
-	"Zephyr/qweather"
+	"Zephyr/internal/providers/openmeteo"
+	"Zephyr/internal/providers/qweather"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

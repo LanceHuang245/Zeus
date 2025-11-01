@@ -1,9 +1,9 @@
 package main
 
 import (
-	apigroup "Zephyr/api_group"
-	"Zephyr/config"
-	"Zephyr/qweather"
+	"Zephyr/internal/api"
+	"Zephyr/internal/config"
+	"Zephyr/internal/providers/qweather"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -19,10 +19,10 @@ func main() {
 	r := gin.Default()
 
 	// API routes
-	r.GET("/api/v1/city/search", apigroup.SearchCities)
+	r.GET("/api/v1/city/search", api.SearchCities)
 	r.GET("/api/v1/weather/alert", qweather.WeatherWarningFromQweather)
-	r.GET("/api/v1/weather/forecast", apigroup.Forecast)
-	r.GET("/api/v1/healthcheck", apigroup.HealthCheck)
+	r.GET("/api/v1/weather/forecast", api.Forecast)
+	r.GET("/api/v1/healthcheck", api.HealthCheck)
 
 	// Start server with configuration
 	if config.EnableTLS {

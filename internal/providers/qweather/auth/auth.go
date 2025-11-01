@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"Zephyr/config"
+	"Zephyr/internal/config"
 	"crypto/ed25519"
 	"crypto/x509"
 	"encoding/pem"

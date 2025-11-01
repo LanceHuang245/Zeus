@@ -1,9 +1,9 @@
-package apigroup
+package api
 
 import (
-	"Zephyr/models"
-	osm "Zephyr/openstreetmap"
-	"Zephyr/qweather"
+	"Zephyr/internal/models"
+	osm "Zephyr/internal/providers/openstreetmap"
+	"Zephyr/internal/providers/qweather"
 	"encoding/json"
 	"net/http"
 	"net/url"

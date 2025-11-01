@@ -1,4 +1,4 @@
-package apigroup
+package api
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"Zephyr/config"
+	"Zephyr/internal/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"

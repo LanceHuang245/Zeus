@@ -1,8 +1,8 @@
 package openmeteo
 
 import (
-	"Zephyr/config"
-	"Zephyr/models"
+	"Zephyr/internal/config"
+	"Zephyr/internal/models"
 	"encoding/json"
 	"fmt"
 	"io"

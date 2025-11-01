@@ -1,7 +1,7 @@
 package config
 
 import (
-	"Zephyr/models"
+	"Zephyr/internal/models"
 	"context"
 	"log"
 	"os"

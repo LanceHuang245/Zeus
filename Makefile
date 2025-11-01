@@ -18,7 +18,7 @@ VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo 'dev')
 BUILD_TIME=$(shell date +%Y-%m-%dT%H:%M:%S%z)
 GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo 'unknown')
 
-.PHONY: help build build-linux build-windows clean tidy test run deps
+.PHONY: help build build-linux build-windows clean tidy test run deps fmt vet lint
 
 # Default target
 all: help
@@ -34,7 +34,6 @@ help: ## Display this help screen
 	@echo '  build-all          Build the binary for all platforms'
 	@echo '  clean              Clean build artifacts'
 	@echo '  tidy               Tidy Go module dependencies'
-	@echo '  test               Run tests'
 	@echo '  run                Run the application locally'
 	@echo '  deps               Download dependencies'
 	@echo '  fmt                Format Go code'
@@ -51,21 +50,21 @@ build: ## Build the binary for current platform
 	@echo "Version: $(VERSION)"
 	@echo "Build Time: $(BUILD_TIME)"
 	@echo "Git Commit: $(GIT_COMMIT)"
-	$(GOBUILD) $(LDFLAGS) -o bin/$(BINARY_NAME) -v
+	$(GOBUILD) $(LDFLAGS) -o bin/$(BINARY_NAME) -v ./cmd/server
 	@echo "Build completed: bin/$(BINARY_NAME)"
 
 # Build for Linux
 build-linux: ## Build the binary for Linux
 	@echo "Building $(BINARY_NAME) for Linux..."
 	@echo "Version: $(VERSION)"
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-amd64 -v
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-amd64 -v ./cmd/server
 	@echo "Linux build completed: bin/$(BINARY_NAME)-linux-amd64"
 
 # Build for Windows
 build-windows: ## Build the binary for Windows
 	@echo "Building $(BINARY_NAME) for Windows..."
 	@echo "Version: $(VERSION)"
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o bin/$(BINARY_NAME)-windows-amd64.exe -v
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o bin/$(BINARY_NAME)-windows-amd64.exe -v ./cmd/server
 	@echo "Windows build completed: bin/$(BINARY_NAME)-windows-amd64.exe"
 
 # Build for all platforms
@@ -96,7 +95,7 @@ deps: ## Download dependencies
 # Run the application
 run: ## Run the application locally
 	@echo "Running $(BINARY_NAME)..."
-	$(GOCMD) run main.go
+	$(GOCMD) run ./cmd/server
 
 # Format Go code
 fmt: ## Format Go code

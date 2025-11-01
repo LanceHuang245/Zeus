@@ -1,9 +1,9 @@
 package qweather
 
 import (
-	"Zephyr/config"
-	"Zephyr/models"
-	"Zephyr/qweather/auth"
+	"Zephyr/internal/config"
+	"Zephyr/internal/models"
+	"Zephyr/internal/providers/qweather/auth"
 	"compress/gzip"
 	"encoding/json"
 	"io"

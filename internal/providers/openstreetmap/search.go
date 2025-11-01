@@ -1,7 +1,7 @@
 package osm
 
 import (
-	"Zephyr/config"
+	"Zephyr/internal/config"
 	"io"
 	"net/http"
 )
