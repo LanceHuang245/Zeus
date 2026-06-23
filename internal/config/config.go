@@ -38,8 +38,8 @@ func LoadConfig() {
 	}
 
 	// Redis configuration
-	RedisAddr = getEnv("REDIS_ADDR", "127.0.0.1:6379")
-	RedisPassword = getEnv("REDIS_PASSWORD", "")
+	RedisAddr = getEnv("REDIS_ADDR", "127.0.0.1:26379")
+	RedisPassword = getEnv("REDIS_PASSWORD", "RF6f7JecsbWFp8jP")
 	RedisDB = getEnvInt("REDIS_DB", 0)
 
 	// Cache TTL (default 30 minutes)
