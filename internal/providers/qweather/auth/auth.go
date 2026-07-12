@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"Zephyr/internal/config"
+	"Zephyr/internal/models"
 	"crypto/ed25519"
 	"crypto/x509"
 	"encoding/pem"
@@ -11,24 +11,26 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// Generate Ed25519 JWT
-func GenerateJWT() (string, error) {
-	priv, err := ParseEd25519PrivateKeyFromPEM([]byte(config.QweatherConfig.PrivateKeyPem))
+// Generate an Ed25519 JWT
+// GenerateJWT creates a signed QWeather access token
+func GenerateJWT(config models.QweatherConfig) (string, error) {
+	priv, err := ParseEd25519PrivateKeyFromPEM([]byte(config.PrivateKeyPem))
 	if err != nil {
 		return "", err
 	}
 	now := time.Now().Unix()
 	claims := jwt.MapClaims{
-		"sub": config.QweatherConfig.ProjectID,
+		"sub": config.ProjectID,
 		"iat": now - 30,
 		"exp": now + 1800,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
-	token.Header["kid"] = config.QweatherConfig.KeyID
+	token.Header["kid"] = config.KeyID
 	return token.SignedString(priv)
 }
 
-// Parse Ed25519 PEM private key
+// Parse an Ed25519 private key from PEM data
+// ParseEd25519PrivateKeyFromPEM parses an Ed25519 private key
 func ParseEd25519PrivateKeyFromPEM(pemBytes []byte) (ed25519.PrivateKey, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {

@@ -1,21 +1,16 @@
 package qweather
 
 import (
-	"Zephyr/internal/config"
-	"Zephyr/internal/models"
-	"Zephyr/internal/providers/qweather/auth"
-	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
+	"Zephyr/internal/models"
 )
 
+// formatLocation normalizes coordinate precision for cache keys and requests
 func formatLocation(location string) string {
 	parts := strings.Split(location, ",")
 	if len(parts) != 2 {
@@ -24,80 +19,37 @@ func formatLocation(location string) string {
 	lon, err1 := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
 	lat, err2 := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
 	if err1 != nil || err2 != nil {
-		return location // Parsing failed, return directly
+		return location
 	}
 	return fmt.Sprintf("%.2f,%.2f", lon, lat)
 }
 
-func WeatherWarningFromQweather(c *gin.Context) {
-	location := c.Query("location")
+// Warning retrieves the current QWeather warning response
+func (c *Client) Warning(ctx context.Context, location, language string) (models.QWeatherWarningResponse, int, error) {
 	location = formatLocation(location)
-	lang := c.DefaultQuery("lang", "zh")
-
-	if location == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "location parameter is required"})
-		return
-	}
-
-	cacheKey := fmt.Sprintf("qweather:warning:%s:%s", location, lang)
-	// 1. Check cache first
-	if val, err := config.RedisClient.Get(config.Ctx, cacheKey).Result(); err == nil {
-		var resp models.QWeatherWarningResponse
-		if err := json.Unmarshal([]byte(val), &resp); err == nil {
-			log.Printf("Retrieved warning data from cache: %s\n", cacheKey)
-			c.JSON(http.StatusOK, resp)
-			return
+	cacheKey := fmt.Sprintf("qweather:warning:%s:%s", location, language)
+	if c.cache != nil {
+		if value, err := c.cache.Get(ctx, cacheKey); err == nil {
+			var response models.QWeatherWarningResponse
+			if err := json.Unmarshal([]byte(value), &response); err == nil {
+				return response, 200, nil
+			}
 		}
 	}
 
-	// 2. Generate JWT
-	token, err := auth.GenerateJWT()
+	apiURL := fmt.Sprintf("%s%s?location=%s&lang=%s", c.baseURL, "/v7/warning/now", location, language)
+	body, status, err := c.do(ctx, apiURL)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "JWT generation failed"})
-		return
+		return models.QWeatherWarningResponse{}, 0, err
 	}
-
-	// 3. Request QWeather
-	apiURL := fmt.Sprintf("%s%s?location=%s&lang=%s", config.QweatherUrl, "/v7/warning/now", location, lang)
-	req, _ := http.NewRequest("GET", apiURL, nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept-Encoding", "gzip")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "QWeather request failed"})
-		return
+	var response models.QWeatherWarningResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return models.QWeatherWarningResponse{}, status, &RequestError{Stage: "parse", Body: body, Err: err}
 	}
-	defer resp.Body.Close()
-
-	// Check if gzip compressed
-	bodyReader := resp.Body
-	if resp.Header.Get("Content-Encoding") == "gzip" {
-		gz, err := gzip.NewReader(resp.Body)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gzip decompression failed"})
-			return
+	if c.cache != nil {
+		if cacheBytes, err := json.Marshal(response); err == nil {
+			_ = c.cache.Set(ctx, cacheKey, cacheBytes, c.cacheTTL)
 		}
-		defer gz.Close()
-		bodyReader = gz
 	}
-	body, err := io.ReadAll(bodyReader)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read QWeather response"})
-		return
-	}
-
-	// 4. Parse into struct
-	var warningResp models.QWeatherWarningResponse
-	if err := json.Unmarshal(body, &warningResp); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse QWeather response", "body": string(body)})
-		return
-	}
-
-	// 5. Cache the serialized JSON of the struct
-	cacheBytes, _ := json.Marshal(warningResp)
-	config.RedisClient.Set(config.Ctx, cacheKey, cacheBytes, config.CacheTTL)
-
-	// 6. Return struct
-	c.JSON(resp.StatusCode, warningResp)
+	return response, status, nil
 }

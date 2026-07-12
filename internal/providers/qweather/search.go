@@ -1,50 +1,20 @@
 package qweather
 
 import (
-	"Zephyr/internal/config"
-	"Zephyr/internal/models"
-	"Zephyr/internal/providers/qweather/auth"
-	"compress/gzip"
+	"context"
 	"encoding/json"
-	"io"
-	"log"
-	"net/http"
+
+	"Zephyr/internal/models"
 )
 
-func SearchCitiesFromQw(location, lang string) ([]byte, error) {
-	token, err := auth.GenerateJWT()
+// SearchCities retrieves and filters QWeather city results
+func (c *Client) SearchCities(ctx context.Context, location, lang string) ([]models.FilteredSearchResult, error) {
+	apiURL := c.baseURL + "/geo/v2/city/lookup?location=" + location + "&lang=" + lang
+	body, _, err := c.do(ctx, apiURL)
 	if err != nil {
 		return nil, err
 	}
-
-	apiURL := config.QweatherUrl + "/geo/v2/city/lookup?location=" + location + "&lang=" + lang
-	req, _ := http.NewRequest("GET", apiURL, nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	log.Println(token)
-	req.Header.Set("Accept-Encoding", "gzip")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	bodyReader := resp.Body
-	if resp.Header.Get("Content-Encoding") == "gzip" {
-		gz, err := gzip.NewReader(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		defer gz.Close()
-		bodyReader = gz
-	}
-	body, err := io.ReadAll(bodyReader)
-	if err != nil {
-		return nil, err
-	}
-	log.Println("QWeather API Response:", string(body))
-
-	var qweatherResponse struct {
+	var response struct {
 		Location []struct {
 			Name    string `json:"name"`
 			Lat     string `json:"lat"`
@@ -53,26 +23,20 @@ func SearchCitiesFromQw(location, lang string) ([]byte, error) {
 			Country string `json:"country"`
 		} `json:"location"`
 	}
-	if err := json.Unmarshal(body, &qweatherResponse); err != nil {
+	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, err
 	}
-
-	var filteredResults []models.FilteredSearchResult
-	for _, loc := range qweatherResponse.Location {
-		filteredResult := models.FilteredSearchResult{
-			Name: loc.Name,
-			Lat:  loc.Lat,
-			Lon:  loc.Lon,
+	var results []models.FilteredSearchResult
+	for _, location := range response.Location {
+		results = append(results, models.FilteredSearchResult{
+			Name: location.Name,
+			Lat:  location.Lat,
+			Lon:  location.Lon,
 			Address: struct {
 				State   string `json:"state"`
 				Country string `json:"country"`
-			}{
-				State:   loc.Adm1,
-				Country: loc.Country,
-			},
-		}
-		filteredResults = append(filteredResults, filteredResult)
+			}{State: location.Adm1, Country: location.Country},
+		})
 	}
-
-	return json.Marshal(filteredResults)
+	return results, nil
 }

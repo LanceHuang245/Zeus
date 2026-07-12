@@ -1,5 +1,6 @@
 package models
 
+// CurrentWeatherResult contains normalized current weather data
 type CurrentWeatherResult struct {
 	Temperature         float64 `json:"temperature"`
 	WeatherCode         int     `json:"weather_code"`
@@ -17,6 +18,7 @@ type CurrentWeatherResult struct {
 	Visibility          float64 `json:"visibility"`
 }
 
+// HourlyWeatherResult contains normalized hourly weather data
 type HourlyWeatherResult struct {
 	Time            string  `json:"time"`
 	Temperature     float64 `json:"temperature"`
@@ -28,6 +30,7 @@ type HourlyWeatherResult struct {
 	SurfacePressure float64 `json:"surface_pressure"`
 }
 
+// DailyWeatherResult contains normalized daily weather data
 type DailyWeatherResult struct {
 	Date        string  `json:"date"`
 	TempMax     float64 `json:"temp_max"`
@@ -36,6 +39,7 @@ type DailyWeatherResult struct {
 	UvIndexMax  float64 `json:"uv_index_max"`
 }
 
+// WeatherResult contains current hourly and daily weather data
 type WeatherResult struct {
 	CWR CurrentWeatherResult  `json:"current"`
 	HWR []HourlyWeatherResult `json:"hourly"`

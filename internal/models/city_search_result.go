@@ -1,5 +1,6 @@
 package models
 
+// FilteredSearchResult contains the public city search response fields
 type FilteredSearchResult struct {
 	Name    string `json:"name"`
 	Lat     string `json:"lat"`

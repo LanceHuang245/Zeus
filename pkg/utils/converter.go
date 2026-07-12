@@ -1,11 +1,10 @@
 package utils
 
-// ToWmoCode converts a weather code from a specific source (e.g., "qweather")
-// into the corresponding WMO weather interpretation code, which is used by OpenMeteo.
-// If the source is already "openmeteo", it returns the code as is.
+// ToWmoCode converts a source weather code into the corresponding WMO code
+// OpenMeteo already uses WMO codes so those values are returned unchanged
 func ToWmoCode(source string, code int) int {
 	if source == "openmeteo" {
-		return code // Already in WMO format
+		return code // Already uses WMO format
 	}
 
 	if source == "qweather" {
@@ -13,38 +12,38 @@ func ToWmoCode(source string, code int) int {
 		// Clear
 		case 100, 150:
 			return 0
-		// Cloudy, Partly Cloudy
+		// Cloudy and partly cloudy
 		case 101, 102, 103, 151, 152, 153:
-			return 1 // Represents "Mainly clear, partly cloudy, and overcast"
+			return 1 // Represents mainly clear partly cloudy and overcast conditions
 		// Overcast
 		case 104:
 			return 3
-		// Fog, Haze, Sand, Dust
+		// Fog haze sand and dust
 		case 500, 501, 502, 503, 504, 507, 508, 509, 510, 511, 512, 513, 514, 515:
 			return 45
 		// Drizzle
 		case 309:
-			return 51 // Drizzle: Light intensity
+			return 51 // Light drizzle
 		// Rain
 		case 305, 306, 307, 308, 310, 311, 312, 314, 315, 316, 317, 318, 399:
-			return 63 // Rain: Moderate intensity
-		// Freezing Rain
+			return 63 // Moderate rain
+		// Freezing rain
 		case 313:
-			return 67 // Freezing Rain: Heavy intensity
-		// Rain Shower
+			return 67 // Heavy freezing rain
+		// Rain shower
 		case 300, 301, 350, 351:
-			return 80 // Rain showers: Slight
-		// Snow & Sleet
+			return 80 // Slight rain showers
+		// Snow and sleet
 		case 400, 401, 402, 403, 407, 408, 409, 410, 499:
-			return 73 // Snow fall: Moderate intensity
-		case 404, 405, 406, 456, 457: // Rain and snow, Sleet
-			return 85 // Snow showers: Slight
+			return 73 // Moderate snowfall
+		case 404, 405, 406, 456, 457: // Rain snow and sleet
+			return 85 // Slight snow showers
 		// Thunderstorm
 		case 302, 303, 304:
-			return 95 // Thunderstorm: Slight or moderate
-		// Unknown or other codes (900 Hot, 901 Cold, 999 Unknown)
+			return 95 // Slight or moderate thunderstorm
+		// Unknown or other codes including hot cold and unknown values
 		default:
-			return 1 // Default to Cloudy, matching frontend logic
+			return 1 // Default to cloudy to match frontend logic
 		}
 	}
 

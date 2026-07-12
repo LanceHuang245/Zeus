@@ -1,94 +1,77 @@
 package openmeteo
 
 import (
-	"Zephyr/internal/config"
-	"Zephyr/internal/models"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
+	"time"
+
+	"Zephyr/internal/models"
+	"Zephyr/internal/ports"
 )
 
-func fetchWeatherData(latitude, longitude, language, unit string) ([]byte, error) {
-	urlStr := config.OmForcastUrl + "?latitude=" + latitude + "&longitude=" + longitude +
-		"&current=apparent_temperature,temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,winddirection_10m,surface_pressure" +
-		"&hourly=weather_code,temperature_2m,precipitation,visibility,wind_speed_10m,wind_speed_80m,wind_speed_120m,pressure_msl,surface_pressure" +
-		"&daily=temperature_2m_max,temperature_2m_min,weather_code,uv_index_max" +
-		"&timezone=auto" + "&lang=" + language + "&temperature_unit=" + unit
-	resp, err := http.Get(urlStr)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return body, nil
+// Client accesses the OpenMeteo forecast and air quality APIs
+type Client struct {
+	forecastURL   string
+	airQualityURL string
+	httpClient    *http.Client
+	cache         ports.Cache
+	cacheTTL      time.Duration
 }
 
-func fetchAirQualityData(latitude, longitude string) ([]byte, error) {
-	urlStr := config.OmAirQualityUrl + "?latitude=" + latitude + "&longitude=" + longitude +
-		"&current=pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,european_aqi" +
-		"&timezone=auto"
-	resp, err := http.Get(urlStr)
-	if err != nil {
-		return nil, err
+// NewClient creates an OpenMeteo client
+func NewClient(forecastURL, airQualityURL string, httpClient *http.Client, cache ports.Cache, cacheTTL time.Duration) *Client {
+	if httpClient == nil {
+		httpClient = http.DefaultClient
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	return &Client{
+		forecastURL:   forecastURL,
+		airQualityURL: airQualityURL,
+		httpClient:    httpClient,
+		cache:         cache,
+		cacheTTL:      cacheTTL,
 	}
-	return body, nil
 }
 
-func GetAllForecastDetails(latitude, longitude, language, unit string) models.WeatherResult {
-	// convert to float64
+// Forecast retrieves and normalizes forecast data
+func (c *Client) Forecast(ctx context.Context, latitude, longitude, language, unit string) (models.WeatherResult, error) {
 	latFloat, _ := strconv.ParseFloat(latitude, 64)
 	lonFloat, _ := strconv.ParseFloat(longitude, 64)
-
-	// Geolocation cached within an approximate range of 1.11 kilometers
 	cacheLatitude := fmt.Sprintf("%.2f", latFloat)
 	cacheLongitude := fmt.Sprintf("%.2f", lonFloat)
-
 	cacheKey := fmt.Sprintf("weather:openmeteo:%s:%s:%s:%s", cacheLatitude, cacheLongitude, language, unit)
-	if cachedData, err := config.RedisClient.Get(config.Ctx, cacheKey).Result(); err == nil {
-		var weatherResult models.WeatherResult
-		err := json.Unmarshal([]byte(cachedData), &weatherResult)
-		if err == nil {
-			log.Printf("Retrieved weather data from cache: %s\n", cacheKey)
-			return weatherResult
+
+	if c.cache != nil {
+		if cachedData, err := c.cache.Get(ctx, cacheKey); err == nil {
+			var weatherResult models.WeatherResult
+			if err := json.Unmarshal([]byte(cachedData), &weatherResult); err == nil {
+				return weatherResult, nil
+			}
 		}
 	}
-	weatherData, err := fetchWeatherData(latitude, longitude, language, unit)
+
+	weatherData, err := c.fetchWeatherData(ctx, latitude, longitude, language, unit)
 	if err != nil {
-		return models.WeatherResult{}
+		return models.WeatherResult{}, err
+	}
+	airQualityData, err := c.fetchAirQualityData(ctx, latitude, longitude)
+	if err != nil {
+		return models.WeatherResult{}, err
 	}
 
-	airQualityData, err := fetchAirQualityData(latitude, longitude)
-	if err != nil {
-		return models.WeatherResult{}
+	var weatherMap map[string]interface{}
+	if err := json.Unmarshal(weatherData, &weatherMap); err != nil {
+		return models.WeatherResult{}, err
+	}
+	var airQualityMap map[string]interface{}
+	if err := json.Unmarshal(airQualityData, &airQualityMap); err != nil {
+		return models.WeatherResult{}, err
 	}
 
 	var weatherResult models.WeatherResult
-
-	var weatherMap map[string]interface{}
-	err = json.Unmarshal(weatherData, &weatherMap)
-	if err != nil {
-		return models.WeatherResult{}
-	}
-
-	var airQualityMap map[string]interface{}
-	err = json.Unmarshal(airQualityData, &airQualityMap)
-	if err != nil {
-		return models.WeatherResult{}
-	}
-
 	if current, ok := weatherMap["current"].(map[string]interface{}); ok {
 		currentWeather := models.CurrentWeatherResult{
 			Temperature:         getFloatValue(current, "temperature_2m"),
@@ -99,8 +82,6 @@ func GetAllForecastDetails(latitude, longitude, language, unit string) models.We
 			Humidity:            getFloatValue(current, "relative_humidity_2m"),
 			SurfacePressure:     getFloatValue(current, "surface_pressure"),
 		}
-
-		// Add air quality data
 		if airQualityCurrent, ok := airQualityMap["current"].(map[string]interface{}); ok {
 			currentWeather.Pm25 = getFloatValue(airQualityCurrent, "pm2_5")
 			currentWeather.Pm10 = getFloatValue(airQualityCurrent, "pm10")
@@ -109,7 +90,6 @@ func GetAllForecastDetails(latitude, longitude, language, unit string) models.We
 			currentWeather.SulfurDioxide = getFloatValue(airQualityCurrent, "sulphur_dioxide")
 			currentWeather.AQI = getFloatValue(airQualityCurrent, "european_aqi")
 		}
-
 		weatherResult.CWR = currentWeather
 	}
 
@@ -122,9 +102,8 @@ func GetAllForecastDetails(latitude, longitude, language, unit string) models.We
 		windSpeeds := getFloatArray(hourly, "wind_speed_10m")
 		pressuresMsl := getFloatArray(hourly, "pressure_msl")
 		surfacePressures := getFloatArray(hourly, "surface_pressure")
-
 		for i := 0; i < len(times); i++ {
-			hourlyWeather := models.HourlyWeatherResult{
+			weatherResult.HWR = append(weatherResult.HWR, models.HourlyWeatherResult{
 				Time:            getValueByIndex(times, i),
 				Temperature:     getFloatValueByIndex(temperatures, i),
 				WeatherCode:     getIntValueByIndex(weatherCodes, i),
@@ -133,8 +112,7 @@ func GetAllForecastDetails(latitude, longitude, language, unit string) models.We
 				WindSpeed:       getFloatValueByIndex(windSpeeds, i),
 				PressureMsl:     getFloatValueByIndex(pressuresMsl, i),
 				SurfacePressure: getFloatValueByIndex(surfacePressures, i),
-			}
-			weatherResult.HWR = append(weatherResult.HWR, hourlyWeather)
+			})
 		}
 	}
 
@@ -144,27 +122,57 @@ func GetAllForecastDetails(latitude, longitude, language, unit string) models.We
 		tempMins := getFloatArray(daily, "temperature_2m_min")
 		weatherCodes := getIntArray(daily, "weather_code")
 		uvIndexMaxs := getFloatArray(daily, "uv_index_max")
-
 		for i := 0; i < len(dates); i++ {
-			dailyWeather := models.DailyWeatherResult{
+			weatherResult.DWR = append(weatherResult.DWR, models.DailyWeatherResult{
 				Date:        getValueByIndex(dates, i),
 				TempMax:     getFloatValueByIndex(tempMaxs, i),
 				TempMin:     getFloatValueByIndex(tempMins, i),
 				WeatherCode: getIntValueByIndex(weatherCodes, i),
 				UvIndexMax:  getFloatValueByIndex(uvIndexMaxs, i),
-			}
-			weatherResult.DWR = append(weatherResult.DWR, dailyWeather)
+			})
 		}
 	}
-	if cachedData, err := json.Marshal(weatherResult); err == nil {
-		log.Printf("Cached weather data: %s\n", cacheKey)
-		config.RedisClient.Set(config.Ctx, cacheKey, cachedData, config.CacheTTL)
-	}
 
-	return weatherResult
+	if c.cache != nil {
+		if cachedData, err := json.Marshal(weatherResult); err == nil {
+			_ = c.cache.Set(ctx, cacheKey, cachedData, c.cacheTTL)
+		}
+	}
+	return weatherResult, nil
 }
 
-// Retrieve float64 values from the map
+// fetchWeatherData retrieves the weather payload
+func (c *Client) fetchWeatherData(ctx context.Context, latitude, longitude, language, unit string) ([]byte, error) {
+	urlStr := c.forecastURL + "?latitude=" + latitude + "&longitude=" + longitude +
+		"&current=apparent_temperature,temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,winddirection_10m,surface_pressure" +
+		"&hourly=weather_code,temperature_2m,precipitation,visibility,wind_speed_10m,wind_speed_80m,wind_speed_120m,pressure_msl,surface_pressure" +
+		"&daily=temperature_2m_max,temperature_2m_min,weather_code,uv_index_max" +
+		"&timezone=auto&lang=" + language + "&temperature_unit=" + unit
+	return c.get(ctx, urlStr)
+}
+
+// fetchAirQualityData retrieves the air quality payload
+func (c *Client) fetchAirQualityData(ctx context.Context, latitude, longitude string) ([]byte, error) {
+	urlStr := c.airQualityURL + "?latitude=" + latitude + "&longitude=" + longitude +
+		"&current=pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,european_aqi&timezone=auto"
+	return c.get(ctx, urlStr)
+}
+
+// get sends a request and reads the response body
+func (c *Client) get(ctx context.Context, urlStr string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return io.ReadAll(resp.Body)
+}
+
+// getFloatValue reads a floating point value from a decoded payload
 func getFloatValue(m map[string]interface{}, key string) float64 {
 	if val, ok := m[key]; ok {
 		if f, ok := val.(float64); ok {
@@ -174,7 +182,7 @@ func getFloatValue(m map[string]interface{}, key string) float64 {
 	return 0
 }
 
-// Retrieve integer value from the map
+// getIntValue reads an integer value from a decoded payload
 func getIntValue(m map[string]interface{}, key string) int {
 	if val, ok := m[key]; ok {
 		if f, ok := val.(float64); ok {
@@ -184,7 +192,7 @@ func getIntValue(m map[string]interface{}, key string) int {
 	return 0
 }
 
-// Retrieve a string array from the map
+// getStringArray reads a string array from a decoded payload
 func getStringArray(m map[string]interface{}, key string) []string {
 	var result []string
 	if arr, ok := m[key].([]interface{}); ok {
@@ -197,7 +205,7 @@ func getStringArray(m map[string]interface{}, key string) []string {
 	return result
 }
 
-// Retrieve a float64 array from the map
+// getFloatArray reads a floating point array from a decoded payload
 func getFloatArray(m map[string]interface{}, key string) []float64 {
 	var result []float64
 	if arr, ok := m[key].([]interface{}); ok {
@@ -210,7 +218,7 @@ func getFloatArray(m map[string]interface{}, key string) []float64 {
 	return result
 }
 
-// Retrieve an int array from the map
+// getIntArray reads an integer array from a decoded payload
 func getIntArray(m map[string]interface{}, key string) []int {
 	var result []int
 	if arr, ok := m[key].([]interface{}); ok {
@@ -223,7 +231,7 @@ func getIntArray(m map[string]interface{}, key string) []int {
 	return result
 }
 
-// Retrieve values from a string array based on their index
+// getValueByIndex safely reads a string array item
 func getValueByIndex(arr []string, index int) string {
 	if index < len(arr) {
 		return arr[index]
@@ -231,7 +239,7 @@ func getValueByIndex(arr []string, index int) string {
 	return ""
 }
 
-// Retrieve values from a float64 array based on an index
+// getFloatValueByIndex safely reads a floating point array item
 func getFloatValueByIndex(arr []float64, index int) float64 {
 	if index < len(arr) {
 		return arr[index]
@@ -239,7 +247,7 @@ func getFloatValueByIndex(arr []float64, index int) float64 {
 	return 0
 }
 
-// Retrieve values from an int array based on their index
+// getIntValueByIndex safely reads an integer array item
 func getIntValueByIndex(arr []int, index int) int {
 	if index < len(arr) {
 		return arr[index]

@@ -1,5 +1,6 @@
 package models
 
+// QWeatherWarningResponse contains the QWeather warning response
 type QWeatherWarningResponse struct {
 	Code       string            `json:"code"`
 	UpdateTime string            `json:"updateTime"`
@@ -8,6 +9,7 @@ type QWeatherWarningResponse struct {
 	Refer      QWeatherRefer     `json:"refer"`
 }
 
+// QWeatherWarning contains one weather warning item
 type QWeatherWarning struct {
 	ID            string `json:"id"`
 	Sender        string `json:"sender"`
@@ -27,6 +29,7 @@ type QWeatherWarning struct {
 	Related       string `json:"related"`
 }
 
+// QWeatherRefer contains QWeather source and license references
 type QWeatherRefer struct {
 	Sources []string `json:"sources"`
 	License []string `json:"license"`
