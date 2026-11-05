@@ -60,7 +60,8 @@ func main() {
 	r.GET("/api/v1/city/search", handlers.SearchCities)
 	r.GET("/api/v1/weather/alert", handlers.WeatherWarning)
 	r.GET("/api/v1/weather/forecast", handlers.Forecast)
-	r.GET("/api/v1/healthcheck", healthHandler.HealthCheck)
+	// HEAD is required by uptime checkers such as shields.io
+	r.Match([]string{http.MethodGet, http.MethodHead}, "/api/v1/healthcheck", healthHandler.HealthCheck)
 
 	// Start the server with the configured transport
 	if cfg.EnableTLS {
