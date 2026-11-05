@@ -11,11 +11,10 @@ import (
 )
 
 const (
-	RateLimitPerMinute       = int(application.RateLimitPerMinute)
-	RateLimitWindowSeconds   = int(application.RateLimitWindow / time.Second)
-	AnomalyThreshold         = int(application.AnomalyThreshold)
-	AnomalyWindowMinutes     = int(application.AnomalyWindow / time.Minute)
-	AllowedApplicationHeader = "Zephyr"
+	RateLimitPerMinute     = int(application.RateLimitPerMinute)
+	RateLimitWindowSeconds = int(application.RateLimitWindow / time.Second)
+	AnomalyThreshold       = int(application.AnomalyThreshold)
+	AnomalyWindowMinutes   = int(application.AnomalyWindow / time.Minute)
 )
 
 // AccessLog contains structured health check access data
@@ -47,14 +46,6 @@ func getClientIP(c *gin.Context) string {
 		return xri
 	}
 	return c.ClientIP()
-}
-
-// validateHeaders checks the required application and user agent headers
-func validateHeaders(c *gin.Context) bool {
-	if c.GetHeader("Application") != AllowedApplicationHeader {
-		return false
-	}
-	return c.GetHeader("User-Agent") != ""
 }
 
 // logAccess records a successful health check access event
@@ -93,11 +84,6 @@ func logAnomaly(c *gin.Context, clientIP string, count int64, timestamp time.Tim
 // HealthCheck validates and processes a health check request
 func (h *HealthHandler) HealthCheck(c *gin.Context) {
 	clientIP := getClientIP(c)
-	if !validateHeaders(c) {
-		c.JSON(400, gin.H{"error": "Invalid request headers", "code": "INVALID_HEADERS"})
-		return
-	}
-
 	result := h.service.Check(c.Request.Context(), clientIP)
 	if result.RateLimitExceeded {
 		c.JSON(429, gin.H{"error": "Too many requests, please try again later", "code": "RATE_LIMIT_EXCEEDED"})
